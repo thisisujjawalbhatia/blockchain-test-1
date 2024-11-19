@@ -2,66 +2,63 @@
 pragma solidity ^0.8.0;
 
 contract TollTransactions {
-    // Structure to store a single transaction
+    // Struct to store transaction details
     struct Transaction {
-        uint256 transactionId;  // Unique ID for the transaction
-        address sender;         // Address of the sender
-        address recipient;      // Address of the recipient
-        uint256 amount;         // Amount transferred
-        uint256 timestamp;      // Time of transaction
+        uint256 id;
+        address userPublicKey;
+        address tollBoothPublicKey;
+        uint256 amount;
     }
 
-    // Array to store all transactions
-    Transaction[] private transactions;
+    // Mapping to store transactions by their ID
+    mapping(uint256 => Transaction) public transactions;
 
-    // Event emitted when a transaction is stored
-    event TransactionStored(uint256 transactionId, address indexed sender, address indexed recipient, uint256 amount, uint256 timestamp);
+    // Event to log transaction details
+    event TransactionCompleted(
+        uint256 indexed id,
+        address indexed userPublicKey,
+        address indexed tollBoothPublicKey,
+        uint256 amount
+    );
 
-    // Function to store a new transaction
-    function storeTransaction(address recipient, uint256 amount) public {
-        require(recipient != address(0), "Invalid recipient address");
-        require(amount > 0, "Amount must be greater than zero");
+    // Function to facilitate a transaction
+    function makeTransaction(
+        uint256 _id,
+        address _userPublicKey,
+        address _tollBoothPublicKey,
+        uint256 _amount
+    ) public payable {
+        require(msg.value == _amount, "Incorrect amount sent.");
+        require(transactions[_id].id == 0, "Transaction ID already exists.");
 
-        uint256 transactionId = transactions.length + 1; // Generate transaction ID
+        // Record the transaction details
+        transactions[_id] = Transaction({
+            id: _id,
+            userPublicKey: _userPublicKey,
+            tollBoothPublicKey: _tollBoothPublicKey,
+            amount: _amount
+        });
 
-        transactions.push(Transaction({
-            transactionId: transactionId,
-            sender: msg.sender,
-            recipient: recipient,
-            amount: amount,
-            timestamp: block.timestamp
-        }));
+        // Transfer the amount to the toll booth
+        payable(_tollBoothPublicKey).transfer(_amount);
 
-        emit TransactionStored(transactionId, msg.sender, recipient, amount, block.timestamp);
+        // Emit an event for logging
+        emit TransactionCompleted(_id, _userPublicKey, _tollBoothPublicKey, _amount);
     }
 
-    // Function to get the total number of transactions
-    function getTransactionCount() public view returns (uint256) {
-        return transactions.length;
+    // Function to fetch transaction details by ID
+    function getTransaction(uint256 _id)
+        public
+        view
+        returns (
+            uint256 id,
+            address userPublicKey,
+            address tollBoothPublicKey,
+            uint256 amount
+        )
+    {
+        Transaction memory txn = transactions[_id];
+        require(txn.id != 0, "Transaction not found.");
+        return (txn.id, txn.userPublicKey, txn.tollBoothPublicKey, txn.amount);
     }
-
-    // Function to get all transactions for a specific user (sender or recipient)
-    function getTransactionsByUser(address user) public view returns (Transaction[] memory) {
-        require(user != address(0), "Invalid user address");
-
-        uint256 count = 0;
-        for (uint256 i = 0; i < transactions.length; i++) {
-            if (transactions[i].sender == user || transactions[i].recipient == user) {
-                count++;
-            }
-        }
-
-        Transaction[] memory userTransactions = new Transaction[](count);
-        uint256 index = 0;
-
-        for (uint256 i = 0; i < transactions.length; i++) {
-            if (transactions[i].sender == user || transactions[i].recipient == user) {
-                userTransactions[index] = transactions[i];
-                index++;
-            }
-        }
-
-        return userTransactions;
-    }
-
 }
